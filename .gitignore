@@ -1,0 +1,10 @@
+Debug/
+*.dll
+*vcxproj*
+*.zip
+lib/
+*.test
+*.png
+x64/
+Release/
+*.dat
