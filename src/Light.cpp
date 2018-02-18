@@ -15,5 +15,5 @@ glm::vec3 Light::getLightAtPoint(glm::vec3 point, glm::vec3 normal, glm::vec3 di
 	glm::vec3 halfVec = glm::normalize(dir + eyeDir);
 	float nDotH = fmax(glm::dot(normal, halfVec), 0.f);
 	glm::vec3 phong = mat.specular * col * powf(nDotH, mat.shininess);
-	return lambert + phong;
+	return getAttenuation(point) * (lambert + phong);
 }

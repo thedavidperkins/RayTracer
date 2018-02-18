@@ -22,15 +22,16 @@ private:
 	float fovy;
 	
 	glm::vec3 getPixelRGB(int x, int y);
-	Shape* findIntersection(Ray& r, float& dist);
+	Shape* findIntersection(const Ray& r, float& dist);
 	glm::vec3 illuminate(const Shape* s, glm::vec3& eyeDir);
 
-	glm::vec3 reflect(const Ray& r, Shape* s, int& depth);
+	glm::vec3 trace(const Ray& r, int& depth);
 	bool getNextBox(glm::i16vec3& index, Ray& r);
 	EXTENT getGridBox(glm::i16vec3 index);
 	glm::i16vec3 getCoordIndex(const glm::vec3& coord);
 	void setUpGrid();
 public:
+	int callCounter; //debugging
 	int maxDepth;
 	std::string outFileName;
 	EXTENT& getExtent() { return masterExtent; }

@@ -10,7 +10,7 @@ public:
 	Ray(glm::vec3 d, glm::vec3 c) : dir(d), center(c) {}
 	Ray(const Ray& rhs) : dir(rhs.dir), center(rhs.center) {}
 
-	Ray transform(const glm::mat4&);
+	Ray transform(const glm::mat4&) const;
 };
 
 #endif

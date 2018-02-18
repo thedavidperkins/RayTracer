@@ -1,6 +1,6 @@
 #include "Ray.h"
 
-Ray Ray::transform(const glm::mat4& tfm) {
+Ray Ray::transform(const glm::mat4& tfm) const {
 	glm::vec4 c4 = glm::vec4(center.x, center.y, center.z, 1.f);
 	glm::vec4 d4 = glm::vec4(dir.x, dir.y, dir.z, 0.f);
 	c4 = tfm * c4;

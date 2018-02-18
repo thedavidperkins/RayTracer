@@ -87,6 +87,10 @@ glm::i16vec3 RayTracer::getCoordIndex(const glm::vec3& coord) {
 	if (iy == gridSize) iy--;
 	if (iz == gridSize) iz--;
 
+	if (ix < 0) ix = 0;
+	if (iy < 0) iy = 0;
+	if (iz < 0) iz = 0;
+
 	return glm::i16vec3(ix, iy, iz);
 }
 
@@ -109,7 +113,9 @@ RayTracer::RayTracer(int n) :
 	height(0),
 	aspect(0.0),
 	gridShapes(nullptr),
-	gridSize(n)
+	gridSize(n),
+	callCounter(0),
+	maxDepth(5)
 {
 	gridShapes = new std::vector<Shape*>**[n];
 	for (int i = 0; i < gridSize; ++i) {
@@ -124,7 +130,7 @@ glm::vec3 RayTracer::getEyePos() {
 	return eye;
 }
 
-Shape* RayTracer::findIntersection(Ray& r, float& dist) {
+Shape* RayTracer::findIntersection(const Ray& r, float& dist) {
 	float minIntersection = INFINITY;
 
 	Shape* winner = nullptr;
@@ -132,9 +138,12 @@ Shape* RayTracer::findIntersection(Ray& r, float& dist) {
 	glm::i16vec3 ind = getCoordIndex(r.center);
 	Ray rCopy(r);
 
+	std::vector<Shape*> seen;
+
 	do {
 		for (Shape* s : gridShapes[ind.x][ind.y][ind.z]) {
 			if (!s->isTested()) {
+				seen.push_back(s);
 				glm::mat4 inverse = glm::inverse(s->getTransform());
 
 				Ray trnRay = r.transform(inverse);
@@ -148,7 +157,7 @@ Shape* RayTracer::findIntersection(Ray& r, float& dist) {
 		}
 	} while (getNextBox(ind, rCopy));
 
-	for (Shape* s : shapes) {
+	for (Shape* s : seen) {
 		s->reset();
 	}
 
@@ -158,9 +167,10 @@ Shape* RayTracer::findIntersection(Ray& r, float& dist) {
 }
 
 glm::vec3 RayTracer::illuminate(const Shape* s, glm::vec3& eyeDir) {
-	glm::vec3 center = applyTransfToPoint(s->getTransform(), s->getPointAtHit());
+	glm::vec3 center = s->getPointAtHit() + EPS * s->getNormalAtHit();
+
+	center = applyTransfToPoint(s->getTransform(), center);
 	glm::vec3 normal = applyTransfToNormal(s->getTransform(), s->getNormalAtHit());
-	center += EPS * normal; // Epsilon shift to make sure we are outside of the surface
 	Material mat = s->getMaterial();
 	glm::vec3 dir, col(0.f);
 
@@ -187,35 +197,49 @@ glm::vec3 RayTracer::illuminate(const Shape* s, glm::vec3& eyeDir) {
 	return col;
 }
 
-glm::vec3 RayTracer::reflect(const Ray& r, Shape* s, int& depth) {
-	glm::vec3 normal(s->getNormalAtHit());
-	glm::vec3 refDir = r.dir - 2 * glm::dot(r.dir, normal) * normal;
-	Ray refRay(refDir, s->getPointAtHit);
+glm::vec3 RayTracer::trace(const Ray& r, int& depth) {
+	float time = 0.f;
+	Shape* hit = findIntersection(r, time);
 
+	if (hit != nullptr) {
+		// Base color of surface
+		glm::vec3 finColor = hit->getAmbient() + hit->getMaterial().emission;
 
-	
+		// Lighting
+		finColor += illuminate(hit, -r.dir);
+
+		glm::vec3 center = hit->getPointAtHit() + EPS * hit->getNormalAtHit();
+
+		glm::vec3 normal = applyTransfToNormal(hit->getTransform(), hit->getNormalAtHit());
+		center = applyTransfToPoint(hit->getTransform(), center);
+
+		glm::vec3 refDir = r.dir - 2 * glm::dot(r.dir, normal) * normal;
+		Ray refRay(refDir, center);
+
+		// Reflections
+		if (depth++ < maxDepth) {
+			finColor += hit->getMaterial().specular * trace(refRay, depth);
+		}
+
+		return finColor;
+	}
+
+	return glm::vec3(0.f);
 }
 
+
+
 glm::vec3 RayTracer::getPixelRGB(int x, int y) {
-	float xPos = aspect * tan(fovy / 2) * (float(x - width / 2) + 0.5f) / (float(width) / 2.0f);
-	float yPos = tan(fovy / 2) * (float(height / 2 - y) - 0.5f) / (float(height) / 2.0f);
+	float xPos = aspect * tan(fovy / 2) * ((1.f * x - float(width) / 2.f) + 0.5f) / (float(width) / 2.0f);
+	float yPos = tan(fovy / 2) * ((float(height) / 2.f - 1.f * y) - 0.5f) / (float(height) / 2.0f);
 
 	glm::vec3 rayDir = glm::normalize(eyeDir + yPos * up + xPos * right);
 
 	Ray ray(rayDir, eye);
 
-	float dummy = 0.f;
-	Shape* hit = findIntersection(ray, dummy);
-
-	if (hit != nullptr) {
-		glm::vec3 finColor = hit->getAmbient() + hit->getMaterial().emission;
-		finColor += illuminate(hit, -rayDir);
-		int recDepth = 0;
-		finColor += reflect(ray, hit, recDepth);
-		
-		return finColor;
-	}
-	return glm::vec3(0.0, 0.0, 0.0);
+	++callCounter;
+	int recDepth = 0;
+	return trace(ray, recDepth);
 }
 
 void RayTracer::setSize(int w, int h) {
