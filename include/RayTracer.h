@@ -31,7 +31,6 @@ private:
 	glm::i16vec3 getCoordIndex(const glm::vec3& coord);
 	void setUpGrid();
 public:
-	int callCounter; //debugging
 	int maxDepth;
 	std::string outFileName;
 	EXTENT& getExtent() { return masterExtent; }

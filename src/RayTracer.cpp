@@ -114,7 +114,6 @@ RayTracer::RayTracer(int n) :
 	aspect(0.0),
 	gridShapes(nullptr),
 	gridSize(n),
-	callCounter(0),
 	maxDepth(5)
 {
 	gridShapes = new std::vector<Shape*>**[n];
@@ -237,7 +236,6 @@ glm::vec3 RayTracer::getPixelRGB(int x, int y) {
 
 	Ray ray(rayDir, eye);
 
-	++callCounter;
 	int recDepth = 0;
 	return trace(ray, recDepth);
 }
