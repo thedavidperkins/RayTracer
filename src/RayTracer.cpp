@@ -27,6 +27,7 @@ static glm::vec3 applyTransfToNormal(const glm::mat4& tfm, glm::vec3 norm) {
 
 bool RayTracer::getNextBox(glm::i16vec3& index, Ray& r) {
 	EXTENT curBox = getGridBox(index);
+
 	float xtar = r.dir.x < 0 ? curBox.xmin : curBox.xmax;
 	float ytar = r.dir.y < 0 ? curBox.ymin : curBox.ymax;
 	float ztar = r.dir.z < 0 ? curBox.zmin : curBox.zmax;
@@ -38,26 +39,37 @@ bool RayTracer::getNextBox(glm::i16vec3& index, Ray& r) {
 
 	if (xtime < ytime) {
 		if (xtime < ztime) {
-			index.x += r.dir.x < 0 ? -1 : 1;
+			index.x += r.dir.x > 0 ? 1 : -1;
 			time = xtime;
 		}
 		else {
-			index.z += r.dir.z < 0 ? -1 : 1;
+			index.z += r.dir.z > 0 ? 1 : -1;
 			time = ztime;
 		}
 	}
 	else {
 		if (ytime < ztime) {
-			index.y += r.dir.y < 0 ? -1 : 1;
+			index.y += r.dir.y > 0 ? 1 : -1;
 			time = ytime;
 		}
 		else {
-			index.z += r.dir.z < 0 ? -1 : 1;
+			index.z += r.dir.z > 0 ? 1 : -1;
 			time = ztime;
 		}
 	}
-
 	r.center = r.center + r.dir * time;
+
+	if (   (index.x >= gridSize && r.dir.x > 0) || (index.x < 0 && r.dir.x < 0)
+		|| (index.y >= gridSize && r.dir.y > 0) || (index.y < 0 && r.dir.y < 0)
+		|| (index.z >= gridSize && r.dir.z > 0) || (index.z < 0 && r.dir.z < 0)) {
+		return false;
+	}
+
+	if (   index.x >= gridSize || index.x < 0
+		|| index.y >= gridSize || index.y < 0
+		|| index.z >= gridSize || index.z < 0) {
+		return getNextBox(index, r);
+	}
 
 	return !(index.x >= gridSize || index.y >= gridSize || index.z >= gridSize || index.x < 0 || index.y < 0 || index.z < 0);
 }
@@ -83,14 +95,6 @@ glm::i16vec3 RayTracer::getCoordIndex(const glm::vec3& coord) {
 	int iy = (int)floorf(((coord.y - masterExtent.ymin) / (masterExtent.ymax - masterExtent.ymin)) * gridSize);
 	int iz = (int)floorf(((coord.z - masterExtent.zmin) / (masterExtent.zmax - masterExtent.zmin)) * gridSize);
 
-	if (ix == gridSize) ix--;
-	if (iy == gridSize) iy--;
-	if (iz == gridSize) iz--;
-
-	if (ix < 0) ix = 0;
-	if (iy < 0) iy = 0;
-	if (iz < 0) iz = 0;
-
 	return glm::i16vec3(ix, iy, iz);
 }
 
@@ -98,9 +102,9 @@ void RayTracer::setUpGrid() {
 	for (Shape* s : shapes) {
 		glm::i16vec3 minInds = getCoordIndex(glm::vec3(s->getExtent().xmin, s->getExtent().ymin, s->getExtent().zmin));
 		glm::i16vec3 maxInds = getCoordIndex(glm::vec3(s->getExtent().xmax, s->getExtent().ymax, s->getExtent().zmax));
-		for (int i = minInds.x; i <= maxInds.x; ++i) {
-			for (int j = minInds.y; j <= maxInds.y; ++j) {
-				for (int k = minInds.z; k <= maxInds.z; ++k) {
+		for (int i = minInds.x < 0 ? 0 : minInds.x; i <= maxInds.x && i != gridSize; ++i) {
+			for (int j = minInds.y < 0 ? 0 : minInds.y; j <= maxInds.y && j != gridSize; ++j) {
+				for (int k = minInds.z < 0 ? 0 : minInds.z; k <= maxInds.z && k != gridSize; ++k) {
 					gridShapes[i][j][k].push_back(s);
 				}
 			}
@@ -137,25 +141,31 @@ Shape* RayTracer::findIntersection(const Ray& r, float& dist) {
 	glm::i16vec3 ind = getCoordIndex(r.center);
 	Ray rCopy(r);
 
+	
 	std::vector<Shape*> seen;
 
-	do {
-		for (Shape* s : gridShapes[ind.x][ind.y][ind.z]) {
-			if (!s->isTested()) {
-				seen.push_back(s);
-				glm::mat4 inverse = glm::inverse(s->getTransform());
+	bool check = true;
+	if (ind.x < 0 || ind.y < 0 || ind.z < 0 || ind.x >= gridSize || ind.y >= gridSize || ind.z >= gridSize) {
+		check = getNextBox(ind, rCopy);
+	}
+	if (check) {
+		do {
+			for (Shape* s : gridShapes[ind.x][ind.y][ind.z]) {
+				if (!s->isTested()) {
+					seen.push_back(s);
+					glm::mat4 inverse = glm::inverse(s->getTransform());
 
-				Ray trnRay = r.transform(inverse);
+					Ray trnRay = r.transform(inverse);
 
-				float intersection = s->getIntersection(trnRay);
-				if (intersection > 0 && intersection < minIntersection) {
-					minIntersection = intersection;
-					winner = s;
+					float intersection = s->getIntersection(trnRay);
+					if (intersection > 0 && intersection < minIntersection) {
+						minIntersection = intersection;
+						winner = s;
+					}
 				}
 			}
-		}
-	} while (getNextBox(ind, rCopy));
-
+		} while (getNextBox(ind, rCopy));
+	}
 	for (Shape* s : seen) {
 		s->reset();
 	}
