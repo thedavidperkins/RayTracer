@@ -8,16 +8,14 @@
 #include <iostream>
 #include <stack>
 
-static void setExtent(EXTENT& master, glm::vec3 cameraPos) {
-	master.xmax = cameraPos.x;
-	master.xmin = cameraPos.x;
-	master.ymax = cameraPos.y;
-	master.ymin = cameraPos.y;
-	master.zmax = cameraPos.z;
-	master.zmin = cameraPos.z;
-}
+static bool extentNotSet = true;
 
 static void updateExtent(EXTENT& master, EXTENT newEx) {
+	if (extentNotSet) {
+		master = newEx;
+		extentNotSet = false;
+	}
+
 	master.xmax = master.xmax > newEx.xmax ? master.xmax : newEx.xmax;
 	master.xmin = master.xmin < newEx.xmin ? master.xmin : newEx.xmin;
 	master.ymax = master.ymax > newEx.ymax ? master.ymax : newEx.ymax;
@@ -75,7 +73,6 @@ bool readFile(const std::string& fileName, RayTracer& rt) {
 						strStrm >> floatVals[iter];
 					}
 					rt.setCamera(glm::vec3(floatVals[0], floatVals[1], floatVals[2]), glm::vec3(floatVals[3], floatVals[4], floatVals[5]), glm::vec3(floatVals[6], floatVals[7], floatVals[8]), floatVals[9]);
-					setExtent(rt.getExtent(), glm::vec3(floatVals[0], floatVals[1], floatVals[2]));
 				}
 				else if (word == "maxverts") {
 					strStrm >> maxverts;
